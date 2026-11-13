@@ -1,0 +1,5 @@
+# Install in an isolated Python 3.12 environment for the CPU runner.
+paddlepaddle==3.2.0
+paddleocr==3.3.1
+paddlex==3.3.10
+rapidfuzz==3.14.3

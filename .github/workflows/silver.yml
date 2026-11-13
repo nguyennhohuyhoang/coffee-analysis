@@ -1,0 +1,113 @@
+name: Café Silver transformation
+
+on:
+  workflow_call:
+    inputs:
+      bronze_run_id:
+        description: 'ID of the completed Bronze collection'
+        required: true
+        type: string
+      allow_smoke:
+        description: 'Allow an explicitly selected Bronze smoke run'
+        type: boolean
+        default: false
+    secrets:
+      SUPABASE_URL:
+        required: true
+      SUPABASE_SECRET_KEY:
+        required: true
+      SILVER_DATABASE_URL:
+        required: true
+  workflow_dispatch:
+    inputs:
+      bronze_run_id:
+        description: 'ID of the completed Bronze collection'
+        required: true
+        type: string
+      stage:
+        description: 'Silver stage to run'
+        type: choice
+        default: both
+        options:
+          - both
+          - about
+          - menu_ocr
+      allow_smoke:
+        description: 'Allow an explicitly selected Bronze smoke run'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  about:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (!inputs.stage || inputs.stage == 'both' || inputs.stage == 'about')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: silver-about-${{ inputs.bronze_run_id }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install PostgreSQL client
+        run: python -m pip install 'psycopg[binary]==3.2.12'
+      - name: Store About features
+        env:
+          BRONZE_RUN_ID: ${{ inputs.bronze_run_id }}
+          ALLOW_SMOKE: ${{ inputs.allow_smoke }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SILVER_DATABASE_URL: ${{ secrets.SILVER_DATABASE_URL }}
+        run: |
+          if [[ ! "$BRONZE_RUN_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo 'Bronze run ID must be a positive integer.' >&2
+            exit 1
+          fi
+          args=(--bronze-run-id "$BRONZE_RUN_ID" --stage about)
+          if [[ "$ALLOW_SMOKE" == true ]]; then
+            args+=(--allow-smoke)
+          fi
+          python -m pipeline.silver.run "${args[@]}"
+
+  menu_ocr:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (!inputs.stage || inputs.stage == 'both' || inputs.stage == 'menu_ocr')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    concurrency:
+      group: silver-menu-ocr-${{ inputs.bronze_run_id }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install PostgreSQL client and OCR dependencies
+        run: python -m pip install 'psycopg[binary]==3.2.12' -r pipeline/silver/requirements-ocr.txt
+      - name: Read menu photos and store OCR results
+        env:
+          PADDLE_PDX_MODEL_SOURCE: bos
+          BRONZE_RUN_ID: ${{ inputs.bronze_run_id }}
+          ALLOW_SMOKE: ${{ inputs.allow_smoke }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SILVER_DATABASE_URL: ${{ secrets.SILVER_DATABASE_URL }}
+        run: |
+          if [[ ! "$BRONZE_RUN_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo 'Bronze run ID must be a positive integer.' >&2
+            exit 1
+          fi
+          args=(--bronze-run-id "$BRONZE_RUN_ID" --stage menu_ocr)
+          if [[ "$ALLOW_SMOKE" == true ]]; then
+            args+=(--allow-smoke)
+          fi
+          python -m pipeline.silver.run "${args[@]}"

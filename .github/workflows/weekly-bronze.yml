@@ -1,0 +1,56 @@
+name: Weekly Bronze collection
+
+on:
+  schedule:
+    # Friday at 09:00 in Da Nang (UTC+7).
+    - cron: '0 2 * * 5'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Collect three test places or run the full weekly collection'
+        type: choice
+        options:
+          - smoke
+          - weekly
+        default: smoke
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: bronze-${{ inputs.mode || 'weekly' }}
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    if: github.event_name == 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      bronze_run_id: ${{ steps.publish.outputs.bronze_run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Collect and publish to Supabase
+        id: publish
+        env:
+          BRONZE_MODE: ${{ inputs.mode || 'weekly' }}
+          GITHUB_TOKEN: ${{ github.token }}
+          OMKAR_API_KEY: ${{ secrets.OMKAR_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: python pipeline/bronze/collect.py --mode "$BRONZE_MODE"
+
+  silver:
+    needs: collect
+    if: (inputs.mode || 'weekly') == 'weekly' && needs.collect.outputs.bronze_run_id != ''
+    uses: ./.github/workflows/silver.yml
+    with:
+      bronze_run_id: ${{ needs.collect.outputs.bronze_run_id }}
+      allow_smoke: false
+    secrets: inherit

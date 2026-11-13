@@ -31,9 +31,9 @@ jobs:
           node-version: 22
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
-          version: 10.5.2
+          package_json_file: web/package.json
           run_install: false
 
       - name: Get pnpm store directory

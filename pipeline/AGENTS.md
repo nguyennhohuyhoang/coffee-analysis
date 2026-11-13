@@ -15,6 +15,13 @@
 
 ## 2. Kiến trúc Tầng Dữ liệu (Supabase DDL)
 
+Pipeline snapshot hằng tuần chạy qua GitHub Actions và Omkar Cloud. Xem [hướng dẫn
+Bronze](bronze/README.md) và [schema](db/migrations/001_bronze.sql) cho hai bảng
+`collection_runs` và `cafe_snapshots`. Workflow này chỉ ghi snapshot vào Supabase
+Postgres và giữ nguyên các tuần đã thu thập. Các mục bên dưới mô tả pipeline
+OCR và cơ sở vật chất hiện có.
+
+
 ### 2.1. Bronze Layer (Raw)
 ```sql
 CREATE TABLE IF NOT EXISTS raw_gmaps_scrapes (

@@ -68,7 +68,8 @@ PRICE_RE = re.compile(
     r"(?<![\w.,:])(?<!\d )(?:"
     r"(?P<usd>\$\s*\d+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?\s*(?:usd|\$))"
     r"|(?P<k>\d{1,3}(?:[.,]\d)?\s?[kK])(?![a-zA-Z])"
-    r"|(?P<full>\d{1,3}(?:[., ]\d{3})+)(?:\s?(?:đ|₫|d|vnd|vnđ|VND|VNĐ|Đ|D))?(?![\d])"
+    r"|(?P<full>(?:\d{1,3}(?:[., ]\d{3})+)(?:\s?(?:đ|₫|d|vnd|vnđ))?"
+    r"|\d{4,7}\s?(?:đ|₫|d|vnd|vnđ)(?!\w))(?!\d)"
     r"|(?P<bare>\d{2,3})" + _UNIT_NO + r"(?![\d.,:]*\d)"
     r")(?P<plus>\s*\+\+)?", re.I)
 
@@ -148,6 +149,11 @@ def extract_items(boxes, bare_is_k=True):
     def mk(name, ps, flags, c):
         return dict(name_raw=name, name_norm=norm(name),
                     prices=[p["value"] for p in ps], currency=ps[0]["kind"],
+                    price_observations=[
+                        dict(amount=p["value"], currency=p["kind"].upper(), raw_text=p["raw"],
+                             inferred_k="inferred_k" in p["flags"], plus_plus="plus_plus" in p["flags"])
+                        for p in ps
+                    ],
                     price_raw=" / ".join(p["raw"] for p in ps), flags=flags, ocr_conf=c["conf"],
                     bbox=[c["x0"], c["y0"], c["x1"], c["y1"]], line_text=c["text"])
 
